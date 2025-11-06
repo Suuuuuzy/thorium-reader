@@ -46,26 +46,26 @@ export function* init() {
     // https://www.electron.build/generated/platformspecificbuildoptions
     // Define custom protocol handler. Deep linking works on packaged versions of the application!
 
-    if (__TH__IS_DEV__) {
-        const electronPath = process.execPath;
-        const appPath = app.getAppPath();
+    // if (__TH__IS_DEV__) {
+    //     const electronPath = process.execPath;
+    //     const appPath = app.getAppPath();
 
-        if (!app.isDefaultProtocolClient("opds", electronPath, [appPath])) {
-            app.setAsDefaultProtocolClient("opds", electronPath, [appPath]);
-        }
+    //     if (!app.isDefaultProtocolClient("opds", electronPath, [appPath])) {
+    //         app.setAsDefaultProtocolClient("opds", electronPath, [appPath]);
+    //     }
 
-        if (!app.isDefaultProtocolClient("thorium", electronPath, [appPath])) {
-            app.setAsDefaultProtocolClient("thorium", electronPath, [appPath]);
-        }
-    } else {
-        if (!app.isDefaultProtocolClient("opds")) {
+    //     if (!app.isDefaultProtocolClient("thorium", electronPath, [appPath])) {
+    //         app.setAsDefaultProtocolClient("thorium", electronPath, [appPath]);
+    //     }
+    // } else {
+        // if (!app.isDefaultProtocolClient("opds")) {
             app.setAsDefaultProtocolClient("opds");
-        }
+        // }
 
-        if (!app.isDefaultProtocolClient("thorium")) {
+        // if (!app.isDefaultProtocolClient("thorium")) {
             app.setAsDefaultProtocolClient("thorium");
-        }
-    }
+        // }
+    // }
 
     // moved to saga/persist.ts
     // app.on("window-all-closed", async () => {
