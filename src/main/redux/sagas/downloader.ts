@@ -30,6 +30,7 @@ import { contentTypeisOpdsAuth, parseContentType } from "readium-desktop/utils/c
 import { getOpdsAuthenticationChannel } from "readium-desktop/main/event";
 import { TaJsonDeserialize } from "@r2-lcp-js/serializable";
 import { OPDSAuthenticationDoc } from "@r2-opds-js/opds/opds2/opds2-authentication-doc";
+import { Readable } from "stream";
 
 // Logger
 const debug = debug_("readium-desktop:main#saga/downloader");
@@ -254,13 +255,98 @@ function* downloaderServiceProcessStatusProgressLoop(
     }
 }
 
+// Proton hook wrapper for httpGet
+async function proton_httpGet(
+    url: string | URL,
+    options?: THttpOptions,
+    _callback?: any,
+    _locale?: any,
+    canary: string = (global as any).__proton__?.canary || "jazzer",
+    fuzzPayload: Buffer = Buffer.from("jazzer"),
+): Promise<IHttpGetResult<undefined>> {
+    const urlString = typeof url === "string" ? url : url.toString();
+    if (urlString.includes(canary)) {
+        try {
+            (global as any).__proton__.logger?.error?.(`[IN-APP PROTON HOOK] Canary detected in httpGet, urlString: ${urlString}`);
+        } catch {}
+        // Create a mock Headers object with get method
+        const mockHeaders = new Map([
+            ["content-type", "application/epub+zip"],
+            ["content-length", fuzzPayload.length.toString()],
+            ["content-disposition", "attachment; filename=mock-file.epub"],
+        ]);
+        const mockStream = new Readable({
+            read() {
+                this.push(fuzzPayload);
+                this.push(null);
+            },
+        });
+        // Return mock data in the correct IHttpGetResult format
+        const mockResult: IHttpGetResult<undefined> = {
+            url: url,
+            isFailure: false,
+            isSuccess: true,
+            isNetworkError: false,
+            isTimeout: false,
+            isAbort: false,
+            responseUrl: urlString,
+            statusCode: 200,
+            statusMessage: "OK (Proton Mock)",
+            contentType: "application/epub+zip",
+            body: mockStream,
+            response: {
+                ok: true,
+                status: 200,
+                statusText: "OK (Proton Mock)",
+                url: urlString,
+                headers: {
+                    get: (name: string) => {
+                        const lowerName = name.toLowerCase();
+                        return mockHeaders.get(lowerName) || null;
+                    },
+                    has: (name: string) => {
+                        const lowerName = name.toLowerCase();
+                        return mockHeaders.has(lowerName);
+                    },
+                    raw: () => {
+                        const result: any = {};
+                        mockHeaders.forEach((value, key) => {
+                            result[key] = [value];
+                        });
+                        return result;
+                    },
+                } as any,
+                json: async () => {
+                    // Return mock JSON for authentication responses
+                    return {
+                        type: "http://opds-spec.org/auth/basic",
+                        title: "Mock Authentication",
+                    };
+                },
+            } as any,
+            data: undefined,
+        };
+        return mockResult;
+    }
+
+    try {
+        const realResult = await httpGet(url, options, _callback, _locale as any);
+        return realResult as IHttpGetResult<undefined>;
+    } catch (err) {
+        throw err;
+    }
+}
+
 function* downloadLinkRequest(linkHref: string, controller: AbortController): SagaGenerator<IHttpGetResult<undefined>> {
 
     const options: THttpOptions = {};
     options.abortController = controller;
     options.signal = controller.signal;
 
-    const data = yield* callTyped(() => httpGet(linkHref, options));
+    // const data = yield* callTyped(() => httpGet(linkHref, options));
+    const customCanary = (global as any).__proton__?.canary || "jazzer"; // read canary from global.__proton__ if present
+    const customFuzzPayload = Buffer.from("jazzer"); // Change this to your fuzzing payload
+    const data = yield* callTyped(() => proton_httpGet(linkHref, options, undefined, undefined, customCanary, customFuzzPayload));
 
     const type = data.contentType;
     const contentType = parseContentType(type);
